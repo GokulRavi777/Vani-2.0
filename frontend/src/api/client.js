@@ -8,16 +8,24 @@ async function handleResponse(response) {
   if (!response.ok) {
     let errorDetail = `HTTP ${response.status} ${response.statusText}`;
     try {
-      const body = await response.json();
-      if (body.detail) {
-        if (typeof body.detail === "string") {
-          errorDetail = body.detail;
-        } else if (Array.isArray(body.detail)) {
-          errorDetail = body.detail.map((d) => d.msg || JSON.stringify(d)).join(", ");
+      const text = await response.text();
+      try {
+        const body = JSON.parse(text);
+        if (body.detail) {
+          if (typeof body.detail === "string") {
+            errorDetail = body.detail;
+          } else if (Array.isArray(body.detail)) {
+            errorDetail = body.detail.map((d) => d.msg || JSON.stringify(d)).join(", ");
+          }
+        }
+      } catch {
+        // If response is HTML or plain text (e.g., Vite proxy ECONNREFUSED error page)
+        if (text.includes("ECONNREFUSED") || response.status === 500) {
+          errorDetail = "Backend connection failed. Please ensure the FastAPI server is running on port 8000.";
         }
       }
     } catch {
-      // Fallback to generic status text
+      // Fallback
     }
     throw new Error(errorDetail);
   }
