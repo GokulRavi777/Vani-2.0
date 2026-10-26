@@ -261,3 +261,73 @@ def test_websocket_stt_unconfigured_provider_returns_error(client, monkeypatch):
         assert data["question_id"] == "q_test"
         assert "Sarvam AI API key" in data["error"]
 
+
+def test_sarvam_adapter_codemix_sdk(monkeypatch):
+    """Verify that SarvamSTTAdapter sends mode='codemix' via the official SDK."""
+    from unittest.mock import MagicMock
+    from app.services.stt.base import SarvamSTTAdapter
+
+    adapter = SarvamSTTAdapter(api_key="test_key_123")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.transcript = "பைதான் list mutable, ஆனால் tuple immutable."
+    mock_client.speech_to_text.transcribe.return_value = mock_response
+    monkeypatch.setattr(adapter, "get_client", lambda: mock_client)
+
+    result = adapter.transcribe_audio_bytes(
+        audio_bytes=b"dummy_pcm",
+        filename="test.wav",
+        language_code="unknown",
+        mime_type="audio/wav",
+        model="saaras:v4",
+    )
+
+    assert result["transcript"] == "பைதான் list mutable, ஆனால் tuple immutable."
+    assert result["model"] == "saaras:v4"
+    assert result["language_code"] == "unknown"
+    mock_client.speech_to_text.transcribe.assert_called_once()
+    _, kwargs = mock_client.speech_to_text.transcribe.call_args
+    assert kwargs.get("mode") == "codemix"
+    assert kwargs.get("language_code") == "unknown"
+    assert kwargs.get("model") == "saaras:v4"
+
+
+def test_sarvam_adapter_codemix_rest_fallback(monkeypatch):
+    """Verify that SarvamSTTAdapter sends mode='codemix' via direct REST fallback."""
+    from unittest.mock import MagicMock
+    from app.services.stt import base
+    from app.services.stt.base import SarvamSTTAdapter
+
+    adapter = SarvamSTTAdapter(api_key="test_key_123")
+    # Simulate SDK unavailable to force REST fallback
+    monkeypatch.setattr(base, "SarvamAI", None)
+
+    mock_post = MagicMock()
+    mock_res = MagicMock()
+    mock_res.status_code = 200
+    mock_res.json.return_value = {
+        "transcript": "SQL query ல index use பண்ணினா lookup O(1) or O(log n) ஆகும்."
+    }
+    mock_post.return_value = mock_res
+    monkeypatch.setattr(base.requests, "post", mock_post)
+
+    result = adapter.transcribe_audio_bytes(
+        audio_bytes=b"dummy_pcm",
+        filename="test.wav",
+        language_code="unknown",
+        mime_type="audio/wav",
+        model="saaras:v4",
+    )
+
+    assert result["transcript"] == "SQL query ல index use பண்ணினா lookup O(1) or O(log n) ஆகும்."
+    assert result["language_code"] == "unknown"
+    assert result["model"] == "saaras:v4"
+    assert "latency_ms" in result
+    mock_post.assert_called_once()
+    _, kwargs = mock_post.call_args
+    assert kwargs["data"]["mode"] == "codemix"
+    assert kwargs["data"]["language_code"] == "unknown"
+    assert kwargs["data"]["model"] == "saaras:v4"
+    assert kwargs["headers"]["api-subscription-key"] == "test_key_123"
+
+

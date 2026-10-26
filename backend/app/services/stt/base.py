@@ -104,7 +104,7 @@ class SarvamSTTAdapter:
                         file=(filename, audio_bytes, mime_type),
                         model=model,
                         language_code=language_code,
-                        mode="transcribe",
+                        mode="codemix",
                     )
                     transcript = getattr(response, "transcript", "") or ""
                     used_sdk = True
@@ -124,7 +124,7 @@ class SarvamSTTAdapter:
                 data = {
                     "model": model,
                     "language_code": language_code,
-                    "mode": "transcribe",
+                    "mode": "codemix",
                 }
                 res = requests.post(
                     "https://api.sarvam.ai/speech-to-text",
