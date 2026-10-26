@@ -192,3 +192,72 @@ def test_validate_question_list_catches_invalid_output():
     ]
     with pytest.raises(QuestionGenerationError, match="does not match any selected skill"):
         validate_question_list(irrelevant_questions, ["Python"])
+
+
+@pytest.mark.parametrize("skill,expected_substrs", [
+    ("Python", ["difference between a list and a tuple", "handle exceptions when reading a file"]),
+    ("SQL", ["second-highest salary", "INNER JOIN and a LEFT JOIN"]),
+    ("Java", ["interface and an abstract class", "exception handling works in Java"]),
+    ("Machine Learning", ["supervised and unsupervised learning", "overfitting in machine learning"])
+])
+def test_all_four_skills_return_exact_questions(client, skill, expected_substrs):
+    """Verify each of the 4 skills returns exactly its two predefined questions."""
+    res = client.post("/api/assessments", json={"skills": [skill], "question_count": 2})
+    assert res.status_code == 201
+    data = res.json()
+    assert len(data["questions"]) == 2
+    assert expected_substrs[0] in data["questions"][0]["text"]
+    assert expected_substrs[1] in data["questions"][1]["text"]
+
+
+def test_submit_answer_workflow(client):
+    """Verify submitting an answer against an assessment question works and is persisted."""
+    create_res = client.post("/api/assessments", json={"skills": ["Python"], "question_count": 2})
+    assert create_res.status_code == 201
+    assessment = create_res.json()
+    assessment_id = assessment["assessment_id"]
+    q1 = assessment["questions"][0]
+
+    # Submit answer
+    answer_payload = {
+        "question_id": q1["question_id"],
+        "transcript": "Lists are mutable while tuples are immutable in Python.",
+        "latency_ms": 350.5,
+        "provider": "google"
+    }
+    sub_res = client.post(f"/api/assessments/{assessment_id}/answers", json=answer_payload)
+    assert sub_res.status_code == 200
+    sub_data = sub_res.json()
+    assert sub_data["status"] == "success"
+    assert sub_data["answer"]["transcript"] == answer_payload["transcript"]
+    assert sub_data["answer"]["question_id"] == q1["question_id"]
+
+    # Re-fetch assessment to ensure answer persistence
+    fetch_res = client.get(f"/api/assessments/{assessment_id}")
+    assert fetch_res.status_code == 200
+    fetched_data = fetch_res.json()
+    assert q1["question_id"] in fetched_data["answers"]
+    assert fetched_data["answers"][q1["question_id"]]["transcript"] == answer_payload["transcript"]
+
+    # Test submitting answer for non-existent question
+    bad_answer = {
+        "question_id": "non_existent_q_id",
+        "transcript": "Some invalid answer"
+    }
+    bad_res = client.post(f"/api/assessments/{assessment_id}/answers", json=bad_answer)
+    assert bad_res.status_code == 400
+    assert "does not belong" in bad_res.json()["detail"]
+
+
+def test_websocket_stt_unconfigured_provider_returns_error(client, monkeypatch):
+    """Verify WebSocket STT reports clear configuration error when provider credentials are missing."""
+    monkeypatch.setenv("SARVAM_API_KEY", "")
+    from app.config import settings
+    monkeypatch.setattr(settings, "SARVAM_API_KEY", "")
+
+    with client.websocket_connect("/ws/stt/en-IN?provider=sarvam&question_id=q_test") as ws:
+        data = ws.receive_json()
+        assert data["type"] == "error"
+        assert data["question_id"] == "q_test"
+        assert "Sarvam AI API key" in data["error"]
+

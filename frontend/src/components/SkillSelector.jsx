@@ -22,9 +22,7 @@ export default function SkillSelector({ onStartAssessment, isSubmitting, errorMe
 
   const handleToggleSkill = (skill) => {
     setValidationError("");
-    setSelectedSkills((prev) =>
-      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
-    );
+    setSelectedSkills([skill]);
   };
 
   const handleStart = (e) => {
@@ -40,10 +38,10 @@ export default function SkillSelector({ onStartAssessment, isSubmitting, errorMe
   return (
     <section className="card" aria-labelledby="skill-selection-title">
       <h2 id="skill-selection-title" className="card-title">
-        Select Technical Skills
+        Select Technical Skill
       </h2>
       <p className="card-subtitle">
-        Choose one or more skills for your interview assessment. Exactly two questions will be generated.
+        Select exactly one skill for your interview assessment. Exactly two questions will be generated.
       </p>
 
       {validationError && (
@@ -58,7 +56,7 @@ export default function SkillSelector({ onStartAssessment, isSubmitting, errorMe
         </div>
       )}
 
-      <div className="skills-grid" role="group" aria-label="Available technical skills">
+      <div className="skills-grid" role="radiogroup" aria-label="Available technical skills">
         {availableSkills.map((skill) => {
           const isSelected = selectedSkills.includes(skill);
           const inputId = `skill-${skill.toLowerCase().replace(/\s+/g, "-")}`;
@@ -70,7 +68,8 @@ export default function SkillSelector({ onStartAssessment, isSubmitting, errorMe
               className={`skill-card ${isSelected ? "selected" : ""}`}
             >
               <input
-                type="checkbox"
+                type="radio"
+                name="skill-selection"
                 id={inputId}
                 checked={isSelected}
                 onChange={() => handleToggleSkill(skill)}

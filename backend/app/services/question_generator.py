@@ -18,6 +18,7 @@ import httpx
 
 from app.config import settings
 from app.schemas.assessment import QuestionModel, QuestionGenerationMode
+from app.services.question_bank import PREDEFINED_QUESTIONS
 
 logger = logging.getLogger("question_generator")
 
@@ -213,35 +214,32 @@ class HybridQuestionGenerator(QuestionGeneratorInterface):
         selected_set = set(skills)
         chosen: List[Dict[str, object]] = []
 
-        # 1. Look for multi-skill combination questions first if multiple skills are selected
-        if len(skills) > 1:
-            for item in FALLBACK_BANK:
-                item_skills = set(item["skills"])
-                # If question skills are a subset of selected skills and have >=2 skills
-                if len(item_skills) >= 2 and item_skills.issubset(selected_set):
-                    if item not in chosen:
-                        chosen.append(item)
-                    if len(chosen) == 2:
+        # If exactly one skill is selected, use the two predefined questions for that skill
+        if len(skills) == 1 and skills[0] in PREDEFINED_QUESTIONS:
+            chosen = list(PREDEFINED_QUESTIONS[skills[0]])
+        elif len(skills) > 1:
+            # Multi-skill: pick 1 question from each selected skill
+            for s in skills:
+                if s in PREDEFINED_QUESTIONS and len(chosen) < 2:
+                    chosen.append(PREDEFINED_QUESTIONS[s][0])
+            # If still need more questions
+            if len(chosen) < 2:
+                for s in skills:
+                    if s in PREDEFINED_QUESTIONS and len(chosen) < 2:
+                        for item in PREDEFINED_QUESTIONS[s]:
+                            if item not in chosen:
+                                chosen.append(item)
+                                if len(chosen) == 2:
+                                    break
+        else:
+            # Fallback to any predefined questions matching skills
+            for s in skills:
+                if s in PREDEFINED_QUESTIONS:
+                    chosen.extend(PREDEFINED_QUESTIONS[s])
+                    if len(chosen) >= 2:
                         break
 
-        # 2. If we need more questions, select single-skill questions covering unrepresented skills
-        if len(chosen) < 2:
-            already_covered = set()
-            for c in chosen:
-                already_covered.update(c["skills"])
-            
-            uncovered = [s for s in skills if s not in already_covered]
-            
-            # Prioritize uncovered skills first
-            for target_skill in (uncovered + skills):
-                for item in FALLBACK_BANK:
-                    if target_skill in item["skills"] and item not in chosen:
-                        chosen.append(item)
-                        break
-                if len(chosen) == 2:
-                    break
-
-        # 3. Final safety: grab any matching question from bank
+        # Fallback to default if somehow chosen is still less than 2
         if len(chosen) < 2:
             for item in FALLBACK_BANK:
                 if any(s in selected_set for s in item["skills"]) and item not in chosen:
@@ -249,11 +247,10 @@ class HybridQuestionGenerator(QuestionGeneratorInterface):
                     if len(chosen) == 2:
                         break
 
-        # Convert to QuestionModel with unique generated question IDs
+        # Convert to QuestionModel with unique generated question IDs per session
         questions: List[QuestionModel] = []
         for idx, item in enumerate(chosen[:2], start=1):
             unique_qid = f"q_{uuid.uuid4().hex[:8]}"
-            # Filter question skills to only those that the candidate actually selected
             filtered_skills = [s for s in item["skills"] if s in selected_set]
             if not filtered_skills:
                 filtered_skills = [skills[0]]
@@ -345,21 +342,7 @@ class HybridQuestionGenerator(QuestionGeneratorInterface):
         question_count: int = 2,
         allow_fallback: bool = True
     ) -> Tuple[List[QuestionModel], QuestionGenerationMode]:
-        """Generate questions using LLM if available, otherwise fallback."""
-        if self.api_key:
-            try:
-                questions = self._call_llm(skills)
-                return questions, "ai"
-            except Exception as e:
-                if not allow_fallback:
-                    raise QuestionGenerationError(
-                        f"LLM generation failed and fallback is disabled: {str(e)}"
-                    ) from e
-                logger.info("Falling back to deterministic question bank.")
-
-        if not allow_fallback:
-            raise QuestionGenerationError("Question generator is not configured and fallback is disabled.")
-
+        """Generate questions using the deterministic question bank (no external LLM required)."""
         questions = self._select_fallback_questions(skills)
         return questions, "fallback"
 
