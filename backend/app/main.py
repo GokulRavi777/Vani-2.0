@@ -7,7 +7,8 @@ from app.config import settings
 from app.routers import (
     health_router,
     skills_router,
-    assessments_router
+    assessments_router,
+    stt_router
 )
 
 logging.basicConfig(
@@ -45,3 +46,4 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(skills_router)
 app.include_router(assessments_router)
+app.include_router(stt_router)

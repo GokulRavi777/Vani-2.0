@@ -62,3 +62,21 @@ export async function getAssessment(assessmentId) {
   const res = await fetch(`${API_BASE}/api/assessments/${encodeURIComponent(assessmentId)}`);
   return handleResponse(res);
 }
+
+export async function submitAnswer(assessmentId, { questionId, transcript, audioMetadata, latencyMs, provider, comparisonResults }) {
+  const res = await fetch(`${API_BASE}/api/assessments/${encodeURIComponent(assessmentId)}/answers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      question_id: questionId,
+      transcript: transcript || "",
+      audio_metadata: audioMetadata || null,
+      latency_ms: latencyMs || null,
+      provider: provider || null,
+      comparison_results: comparisonResults || null
+    })
+  });
+  return handleResponse(res);
+}

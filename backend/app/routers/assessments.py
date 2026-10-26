@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import uuid
 
+from datetime import datetime, timezone
+
 from app.schemas.assessment import (
     CreateAssessmentRequest,
-    AssessmentResponse
+    AssessmentResponse,
+    SubmitAnswerRequest,
+    AnswerModel
 )
 from app.services.session_store import SessionStoreInterface, get_session_store
 from app.services.question_generator import (
@@ -50,7 +54,8 @@ def create_assessment(
         language=request.language,
         question_generation_mode=mode,
         stt_mode=request.stt_mode or "google",
-        questions=questions
+        questions=questions,
+        answers={}
     )
 
     session_store.save(assessment)
@@ -75,3 +80,52 @@ def get_assessment(
             detail=f"Assessment '{assessment_id}' not found."
         )
     return session
+
+
+@router.post(
+    "/{assessment_id}/answers",
+    status_code=status.HTTP_200_OK,
+    summary="Submit or save an answer for a specific question"
+)
+def submit_answer(
+    assessment_id: str,
+    request: SubmitAnswerRequest,
+    session_store: SessionStoreInterface = Depends(get_session_store)
+):
+    """Save an answer against the assessment session and target question."""
+    session = session_store.get(assessment_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assessment '{assessment_id}' not found."
+        )
+
+    # Validate that question_id belongs to this assessment
+    valid_q_ids = [q.question_id for q in session.questions]
+    if request.question_id not in valid_q_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Question '{request.question_id}' does not belong to assessment '{assessment_id}'."
+        )
+
+    answer = AnswerModel(
+        question_id=request.question_id,
+        transcript=request.transcript or "",
+        audio_metadata=request.audio_metadata,
+        latency_ms=request.latency_ms,
+        provider=request.provider,
+        comparison_results=request.comparison_results,
+        submitted_at=datetime.now(timezone.utc).isoformat()
+    )
+
+    if not session.answers:
+        session.answers = {}
+    session.answers[request.question_id] = answer.model_dump()
+    session_store.save(session)
+
+    return {
+        "status": "success",
+        "assessment_id": assessment_id,
+        "question_id": request.question_id,
+        "answer": answer
+    }

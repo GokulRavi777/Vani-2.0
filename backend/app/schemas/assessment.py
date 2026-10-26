@@ -63,6 +63,25 @@ class CreateAssessmentRequest(BaseModel):
         return v
 
 
+class AnswerModel(BaseModel):
+    question_id: str = Field(..., description="The ID of the question being answered")
+    transcript: str = Field(default="", description="The text transcript of the candidate's answer")
+    audio_metadata: Optional[dict] = Field(default=None, description="Metadata about the recorded audio")
+    latency_ms: Optional[float] = Field(default=None, description="STT latency in milliseconds")
+    provider: Optional[str] = Field(default=None, description="STT provider used")
+    comparison_results: Optional[dict] = Field(default=None, description="Dual provider comparison results if applicable")
+    submitted_at: Optional[str] = Field(default=None, description="ISO timestamp of answer submission")
+
+
+class SubmitAnswerRequest(BaseModel):
+    question_id: str = Field(..., description="The ID of the question being answered")
+    transcript: Optional[str] = Field(default="", description="The text transcript of the candidate's answer")
+    audio_metadata: Optional[dict] = Field(default=None, description="Metadata about the recorded audio")
+    latency_ms: Optional[float] = Field(default=None, description="STT latency in milliseconds")
+    provider: Optional[str] = Field(default=None, description="STT provider used")
+    comparison_results: Optional[dict] = Field(default=None, description="Dual provider comparison results if applicable")
+
+
 class AssessmentResponse(BaseModel):
     assessment_id: str = Field(..., description="Unique assessment session identifier")
     skills: List[str] = Field(..., description="Selected skills for this assessment")
@@ -80,4 +99,8 @@ class AssessmentResponse(BaseModel):
         min_length=2,
         max_length=2,
         description="List of exactly 2 generated questions"
+    )
+    answers: Optional[dict] = Field(
+        default_factory=dict,
+        description="Candidate submitted answers keyed by question_id"
     )
