@@ -78,7 +78,7 @@ class SarvamSTTAdapter:
         self,
         audio_bytes: bytes,
         filename: str = "audio.wav",
-        language_code: str = "en-IN",
+        language_code: str = "unknown",
         mime_type: str = "audio/wav",
         model: str = "saaras:v4",
     ) -> Dict[str, object]:
@@ -156,7 +156,7 @@ class SarvamSTTAdapter:
         self,
         pcm_bytes: bytes,
         sample_rate: int = 16000,
-        language_code: str = "en-IN",
+        language_code: str = "unknown",
         model: str = "saaras:v4",
     ) -> Dict[str, object]:
         """Convert linear 16-bit PCM bytes to WAV and transcribe with Sarvam."""
@@ -174,7 +174,7 @@ class SarvamSTTAdapter:
     async def transcribe_stream(
         self,
         audio_stream: AsyncGenerator[bytes, None],
-        language_code: str = "en-IN",
+        language_code: str = "unknown",
     ) -> AsyncGenerator[Dict[str, object], None]:
         """Process incoming 16kHz Int16 LE PCM stream from client WebSocket.
 
