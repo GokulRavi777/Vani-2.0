@@ -2,7 +2,23 @@
  * API client for Vani 2.0 POC backend.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+
+export function getWebSocketBaseUrl() {
+  const wsEnv = import.meta.env.VITE_WS_BASE_URL;
+  if (wsEnv && wsEnv.trim()) return wsEnv.trim().replace(/\/+$/, "");
+
+  if (API_BASE) {
+    return API_BASE
+      .replace(/^https:\/\//i, "wss://")
+      .replace(/^http:\/\//i, "ws://")
+      .replace(/\/+$/, "");
+  }
+
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${window.location.host}`;
+}
+
 
 async function handleResponse(response) {
   if (!response.ok) {
@@ -42,7 +58,7 @@ export async function fetchSkills() {
   return handleResponse(res);
 }
 
-export async function createAssessment({ skills, language = "en-IN", questionCount = 2, sttMode = "google" }) {
+export async function createAssessment({ skills, language = "en-IN", questionCount = 2, sttMode = "sarvam" }) {
   const res = await fetch(`${API_BASE}/api/assessments`, {
     method: "POST",
     headers: {
@@ -80,3 +96,22 @@ export async function submitAnswer(assessmentId, { questionId, transcript, audio
   });
   return handleResponse(res);
 }
+
+export async function transcribeAudioBlob(blob, { language = "en-IN", questionId = null } = {}) {
+  const formData = new FormData();
+  const rawType = (blob.type || "").split(";")[0].trim() || "audio/webm";
+  const ext = rawType.includes("webm") ? "webm" : rawType.includes("mp4") ? "mp4" : "wav";
+  const cleanBlob = new Blob([blob], { type: rawType });
+  formData.append("file", cleanBlob, `recorded_audio.${ext}`);
+
+
+  const query = new URLSearchParams({ language_code: language });
+  if (questionId) query.append("question_id", questionId);
+
+  const res = await fetch(`${API_BASE}/api/stt/transcribe?${query.toString()}`, {
+    method: "POST",
+    body: formData
+  });
+  return handleResponse(res);
+}
+

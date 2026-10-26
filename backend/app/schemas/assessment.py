@@ -27,8 +27,8 @@ class CreateAssessmentRequest(BaseModel):
         description="Number of questions to generate. Prototype strictly enforces 2."
     )
     stt_mode: Optional[STTMode] = Field(
-        default="google",
-        description="Provider-neutral configuration for future STT benchmark mode"
+        default=settings.DEFAULT_STT_MODE,
+        description="Provider-neutral configuration for STT mode"
     )
 
     @field_validator("skills")
@@ -91,8 +91,8 @@ class AssessmentResponse(BaseModel):
         description="Origin of questions: 'ai' (configured generator) or 'fallback' (deterministic bank)"
     )
     stt_mode: Optional[STTMode] = Field(
-        default="google",
-        description="Future STT provider mode configuration"
+        default=settings.DEFAULT_STT_MODE,
+        description="STT provider mode configuration"
     )
     questions: List[QuestionModel] = Field(
         ...,

@@ -3,6 +3,7 @@ import uuid
 
 from datetime import datetime, timezone
 
+from app.config import settings
 from app.schemas.assessment import (
     CreateAssessmentRequest,
     AssessmentResponse,
@@ -53,7 +54,7 @@ def create_assessment(
         skills=request.skills,
         language=request.language,
         question_generation_mode=mode,
-        stt_mode=request.stt_mode or "google",
+        stt_mode=request.stt_mode or settings.DEFAULT_STT_MODE,
         questions=questions,
         answers={}
     )

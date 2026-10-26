@@ -249,10 +249,15 @@ def test_submit_answer_workflow(client):
     assert "does not belong" in bad_res.json()["detail"]
 
 
-def test_websocket_stt_unconfigured_provider_returns_error(client):
+def test_websocket_stt_unconfigured_provider_returns_error(client, monkeypatch):
     """Verify WebSocket STT reports clear configuration error when provider credentials are missing."""
-    with client.websocket_connect("/ws/stt/en-IN?provider=google&question_id=q_test") as ws:
+    monkeypatch.setenv("SARVAM_API_KEY", "")
+    from app.config import settings
+    monkeypatch.setattr(settings, "SARVAM_API_KEY", "")
+
+    with client.websocket_connect("/ws/stt/en-IN?provider=sarvam&question_id=q_test") as ws:
         data = ws.receive_json()
         assert data["type"] == "error"
         assert data["question_id"] == "q_test"
-        assert "Google Cloud STT credentials" in data["error"]
+        assert "Sarvam AI API key" in data["error"]
+

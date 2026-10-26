@@ -111,6 +111,18 @@ export class STTWebSocketClient {
     }
   }
 
+  /**
+   * Send a text "stop" command to the backend.
+   * This signals end of audio stream so Sarvam flushes final transcripts.
+   * Call this when recording stops — wait a few seconds before calling close().
+   */
+  sendStop() {
+    if (this.isClosed) return;
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send("stop");
+    }
+  }
+
   close() {
     this.isClosed = true;
     this.isConnected = false;

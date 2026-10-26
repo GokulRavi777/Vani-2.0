@@ -3,7 +3,11 @@ import SessionStatusBadge from "./SessionStatusBadge";
 import AudioInterviewCard from "./AudioInterviewCard";
 import { AudioCaptureService } from "../api/audioCapture";
 import { STTWebSocketClient } from "../api/websocketClient";
-import { submitAnswer } from "../api/client";
+import { submitAnswer, transcribeAudioBlob, getWebSocketBaseUrl } from "../api/client";
+
+
+
+
 
 export default function AssessmentView({ assessment, onReset, onComplete }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -71,15 +75,15 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
     audioCaptureRef.current = captureService;
 
     // Connect WebSocket
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const wsUrl = `${wsProtocol}//${host}/ws/stt/en-IN/?assessment_id=${assessment.assessment_id}&question_id=${qId}&provider=${assessment.stt_mode || "google"}`;
+    const wsBase = getWebSocketBaseUrl();
+    const wsUrl = `${wsBase}/ws/stt/en-IN?assessment_id=${assessment.assessment_id}&question_id=${qId}&provider=${assessment.stt_mode || "sarvam"}`;
+
 
     const wsClient = new STTWebSocketClient({
       url: wsUrl,
       assessmentId: assessment.assessment_id,
       questionId: qId,
-      provider: assessment.stt_mode || "google",
+      provider: assessment.stt_mode || "sarvam",
       onPartial: (partialText, meta) => {
         setAnswers((prev) => ({
           ...prev,
@@ -140,9 +144,11 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
     }
     setIsRecording(false);
 
+    const qId = currentQuestion.question_id;
+
+    let capturedBlob = null;
     if (audioCaptureRef.current) {
-      const blob = await audioCaptureRef.current.stopRecording();
-      const qId = currentQuestion.question_id;
+      capturedBlob = await audioCaptureRef.current.stopRecording();
 
       setAnswers((prev) => {
         const existing = prev[qId] || {};
@@ -150,16 +156,50 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
           ...prev,
           [qId]: {
             ...existing,
-            audioBlob: blob,
-            finalTranscript: existing.finalTranscript || existing.livePartial || "(Audio captured — ready for evaluation)"
+            audioBlob: capturedBlob,
+            finalTranscript: existing.finalTranscript || existing.livePartial || ""
           }
         };
       });
     }
 
+    // Signal end of audio to backend/Sarvam so WebSocket flushes final transcripts
     if (wsClientRef.current) {
-      wsClientRef.current.close();
-      wsClientRef.current = null;
+      wsClientRef.current.sendStop();
+
+      // Close WS gracefully after waiting for final transcript
+      setTimeout(() => {
+        if (wsClientRef.current) {
+          wsClientRef.current.close();
+          wsClientRef.current = null;
+        }
+      }, 4000);
+    }
+
+    // Direct REST transcribe with Sarvam AI Saaras v4 using recorded audio blob
+    if (capturedBlob && capturedBlob.size > 0) {
+      transcribeAudioBlob(capturedBlob, {
+        language: assessment.language || "en-IN",
+        questionId: qId
+      })
+        .then((res) => {
+          if (res && res.transcript) {
+            setAnswers((prev) => {
+              const existing = prev[qId] || {};
+              return {
+                ...prev,
+                [qId]: {
+                  ...existing,
+                  finalTranscript: res.transcript,
+                  latencyMs: res.latencyMs || existing.latencyMs
+                }
+              };
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn("REST transcribe fallback info:", err);
+        });
     }
   };
 
@@ -213,7 +253,7 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
         transcript: answer.finalTranscript || answer.livePartial || "",
         audioMetadata: answer.audioMetadata,
         latencyMs: answer.latencyMs,
-        provider: assessment.stt_mode || "google",
+        provider: assessment.stt_mode || "sarvam",
         comparisonResults
       });
     } catch (err) {
@@ -271,7 +311,7 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
           question={currentQuestion}
           questionNumber={questionNumber}
           totalQuestions={totalQuestions}
-          sttMode={assessment.stt_mode || "google"}
+          sttMode={assessment.stt_mode || "sarvam"}
           isRecording={isRecording}
           recordingTime={recordingTime}
           audioMetadata={currentAnswer.audioMetadata}

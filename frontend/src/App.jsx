@@ -10,7 +10,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [viewMode, setViewMode] = useState("select"); // "select" | "interview" | "results"
   const [completedAnswers, setCompletedAnswers] = useState({});
-  const [selectedSttMode, setSelectedSttMode] = useState("compare");
+  const [selectedSttMode, setSelectedSttMode] = useState("sarvam");
 
   const handleStartAssessment = async (selectedSkills) => {
     setIsSubmitting(true);
@@ -49,26 +49,14 @@ export default function App() {
       <header className="app-header">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <h1>Vani 2.0 POC — Assessment & STT Benchmark</h1>
-            <p>Google Cloud STT vs. Sarvam AI Saaras v4 Evaluation Platform</p>
+            <h1>Vani 2.0 POC — Technical Assessment</h1>
+            <p>Real-Time Speech Recognition powered by Sarvam AI Saaras v4</p>
           </div>
-          {viewMode === "select" && (
-            <div className="mode-selector-header">
-              <label htmlFor="stt-mode-select" style={{ fontSize: "0.85rem", fontWeight: 600, marginRight: "8px" }}>
-                Target Mode:
-              </label>
-              <select
-                id="stt-mode-select"
-                value={selectedSttMode}
-                onChange={(e) => setSelectedSttMode(e.target.value)}
-                className="select-dropdown"
-              >
-                <option value="compare">Compare Mode (Google vs Sarvam)</option>
-                <option value="google">Google Cloud STT</option>
-                <option value="sarvam">Sarvam AI Saaras v4</option>
-              </select>
-            </div>
-          )}
+          <div className="mode-selector-header">
+            <span className="badge" style={{ background: "#2563eb", color: "#fff", padding: "6px 12px", borderRadius: "16px", fontSize: "0.85rem", fontWeight: 600 }}>
+              STT: Sarvam Saaras v4
+            </span>
+          </div>
         </div>
       </header>
 

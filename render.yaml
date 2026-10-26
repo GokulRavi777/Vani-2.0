@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: vani-2-poc-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --http h11 --h11-max-incomplete-event-size 65536
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: DEFAULT_STT_MODE
+        value: sarvam
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: "*"
