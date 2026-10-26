@@ -74,9 +74,10 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
 
     audioCaptureRef.current = captureService;
 
-    // Connect WebSocket
+    // Connect WebSocket (use 'unknown' for automatic language detection in the spoken language)
     const wsBase = getWebSocketBaseUrl();
-    const wsUrl = `${wsBase}/ws/stt/en-IN?assessment_id=${assessment.assessment_id}&question_id=${qId}&provider=${assessment.stt_mode || "sarvam"}`;
+    const targetLang = assessment.language && assessment.language !== "en-IN" ? assessment.language : "unknown";
+    const wsUrl = `${wsBase}/ws/stt/${targetLang}?assessment_id=${assessment.assessment_id}&question_id=${qId}&provider=${assessment.stt_mode || "sarvam"}`;
 
 
     const wsClient = new STTWebSocketClient({
@@ -178,8 +179,9 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
 
     // Direct REST transcribe with Sarvam AI Saaras v4 using recorded audio blob
     if (capturedBlob && capturedBlob.size > 0) {
+      const restLang = assessment.language && assessment.language !== "en-IN" ? assessment.language : "unknown";
       transcribeAudioBlob(capturedBlob, {
-        language: assessment.language || "en-IN",
+        language: restLang,
         questionId: qId
       })
         .then((res) => {

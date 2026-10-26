@@ -97,7 +97,7 @@ export async function submitAnswer(assessmentId, { questionId, transcript, audio
   return handleResponse(res);
 }
 
-export async function transcribeAudioBlob(blob, { language = "en-IN", questionId = null } = {}) {
+export async function transcribeAudioBlob(blob, { language = "unknown", questionId = null } = {}) {
   const formData = new FormData();
   const rawType = (blob.type || "").split(";")[0].trim() || "audio/webm";
   const ext = rawType.includes("webm") ? "webm" : rawType.includes("mp4") ? "mp4" : "wav";

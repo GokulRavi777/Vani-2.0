@@ -19,7 +19,7 @@ router = APIRouter(tags=["STT Streaming"])
 
 async def handle_websocket_stt(
     websocket: WebSocket,
-    language_code: str = "en-IN",
+    language_code: str = "unknown",
     assessment_id: Optional[str] = None,
     question_id: Optional[str] = None,
     provider: Optional[str] = "sarvam"
@@ -150,7 +150,7 @@ async def handle_websocket_stt(
 @router.websocket("/ws/stt/{language_code}")
 async def websocket_stt_endpoint(
     websocket: WebSocket,
-    language_code: str = "en-IN",
+    language_code: str = "unknown",
     assessment_id: Optional[str] = Query(None),
     question_id: Optional[str] = Query(None),
     provider: Optional[str] = Query("sarvam")
@@ -161,7 +161,7 @@ async def websocket_stt_endpoint(
 @router.websocket("/ws/stt/{language_code}/")
 async def websocket_stt_endpoint_slash(
     websocket: WebSocket,
-    language_code: str = "en-IN",
+    language_code: str = "unknown",
     assessment_id: Optional[str] = Query(None),
     question_id: Optional[str] = Query(None),
     provider: Optional[str] = Query("sarvam")
@@ -172,7 +172,7 @@ async def websocket_stt_endpoint_slash(
 @router.post("/api/stt/transcribe")
 async def transcribe_audio_file(
     file: UploadFile = File(...),
-    language_code: str = Query("en-IN"),
+    language_code: str = Query("unknown"),
     model: str = Query("saaras:v4"),
     question_id: Optional[str] = Query(None)
 ):
