@@ -49,12 +49,19 @@ def create_assessment(
 
     assessment_id = f"asm_{uuid.uuid4().hex[:12]}"
 
+    effective_provider = request.provider or "sarvam"
+    effective_stt_mode = request.stt_mode
+    if not effective_stt_mode or (effective_provider == "gnani" and effective_stt_mode == "sarvam"):
+        effective_stt_mode = "gnani" if effective_provider == "gnani" else (request.stt_mode or settings.DEFAULT_STT_MODE)
+
     assessment = AssessmentResponse(
         assessment_id=assessment_id,
         skills=request.skills,
         language=request.language,
         question_generation_mode=mode,
-        stt_mode=request.stt_mode or settings.DEFAULT_STT_MODE,
+        stt_mode=effective_stt_mode,
+        provider=effective_provider,
+        voice=request.voice,
         questions=questions,
         answers={}
     )

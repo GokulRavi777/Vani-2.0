@@ -64,13 +64,21 @@ export class STTWebSocketClient {
               this.firstPartialTime = Date.now();
             }
             const text = data.transcript || data.text || "";
-            const latency = this.firstPartialTime - this.startTime;
-            this.onPartial(text, { latencyMs: latency });
+            const latency = data.turnaroundMs || data.latencyMs || (this.firstPartialTime - this.startTime);
+            this.onPartial(text, {
+              latencyMs: latency,
+              turnaroundMs: data.turnaroundMs,
+              vadData: data
+            });
           } else if (data.type === "partial_final" || data.type === "final" || data.type === "done_stt") {
             this.finalTime = Date.now();
             const text = data.transcript || data.transcript_original || data.text || "";
-            const latency = this.finalTime - this.startTime;
-            this.onFinal(text, { latencyMs: latency });
+            const latency = data.turnaroundMs || data.latencyMs || (this.finalTime - this.startTime);
+            this.onFinal(text, {
+              latencyMs: latency,
+              turnaroundMs: data.turnaroundMs,
+              vadData: data
+            });
           } else if (data.type === "error") {
             this.onError(data.message || data.error || "STT provider error occurred");
           }

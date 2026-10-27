@@ -127,7 +127,12 @@ export class AudioCaptureService {
       // Setup AudioContext for real-time 16kHz PCM streaming
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
-        this.audioContext = new AudioCtx();
+        try {
+          this.audioContext = new AudioCtx({ sampleRate: 16000 });
+        } catch {
+          this.audioContext = new AudioCtx();
+        }
+
         if (this.audioContext.state === "suspended") {
           await this.audioContext.resume();
         }
@@ -138,6 +143,7 @@ export class AudioCaptureService {
         // ScriptProcessorNode provides cross-browser raw audio sample access
         const bufferSize = 4096;
         this.processorNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+        window._activeAudioProcessor = this.processorNode; // Prevent GC in V8/Blink
 
         this.processorNode.onaudioprocess = (e) => {
           if (!this.isRecording) return;
@@ -147,8 +153,13 @@ export class AudioCaptureService {
           this.onAudioChunk(pcm16.buffer);
         };
 
+        // Route through zero-gain node so Web Audio graph executes without feedback to speakers
+        this.muteGainNode = this.audioContext.createGain();
+        this.muteGainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+
         source.connect(this.processorNode);
-        this.processorNode.connect(this.audioContext.destination);
+        this.processorNode.connect(this.muteGainNode);
+        this.muteGainNode.connect(this.audioContext.destination);
       }
 
       this.isRecording = true;
@@ -194,6 +205,15 @@ export class AudioCaptureService {
         this.processorNode.disconnect();
       } catch {}
       this.processorNode = null;
+    }
+    if (window._activeAudioProcessor) {
+      window._activeAudioProcessor = null;
+    }
+    if (this.muteGainNode) {
+      try {
+        this.muteGainNode.disconnect();
+      } catch {}
+      this.muteGainNode = null;
     }
     if (this.audioContext) {
       try {

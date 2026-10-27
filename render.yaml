@@ -14,5 +14,7 @@ services:
         value: sarvam
       - key: SARVAM_API_KEY
         sync: false
+      - key: GNANI_API_KEY
+        sync: false
       - key: CORS_ORIGINS
         value: "*"

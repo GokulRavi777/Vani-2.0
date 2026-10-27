@@ -81,8 +81,13 @@ class SarvamSTTAdapter:
         language_code: str = "unknown",
         mime_type: str = "audio/wav",
         model: str = "saaras:v4",
+        mode: str = "transcribe",
     ) -> Dict[str, object]:
-        """Transcribe an audio buffer using Sarvam AI Saaras v4."""
+        """Transcribe an audio buffer using Sarvam AI Saaras v4.
+        
+        When language_code is 'unknown' or 'auto', Sarvam auto-detects
+        the spoken language and transcribes the speech in that same language.
+        """
         api_key = self.get_api_key()
         if not api_key:
             raise RuntimeError("Sarvam AI API key is not configured in backend/.env")
@@ -91,40 +96,43 @@ class SarvamSTTAdapter:
         transcript = ""
         used_sdk = False
 
+        # Normalize auto/default/unknown to 'unknown' for Sarvam auto language detection
+        target_lang = "unknown" if (not language_code or language_code.lower() in ("unknown", "auto", "default")) else language_code
+        detected_language = target_lang
+
         if mime_type and ";" in mime_type:
             mime_type = mime_type.split(";")[0].strip()
 
         # First attempt: Official sarvamai SDK if available
         if SarvamAI is not None:
-
             try:
                 client = self.get_client()
                 if client:
                     response = client.speech_to_text.transcribe(
                         file=(filename, audio_bytes, mime_type),
                         model=model,
-                        language_code=language_code,
-                        mode="codemix",
+                        language_code=target_lang,
+                        mode=mode,
                     )
                     transcript = getattr(response, "transcript", "") or ""
+                    detected_language = getattr(response, "language_code", None) or target_lang
                     used_sdk = True
                     logger.info(
-                        "Sarvam SDK transcribe success: model=%s lang=%s transcript=%r (%.2f ms)",
-                        model, language_code, transcript, (time.time() - start_time) * 1000
+                        "Sarvam SDK transcribe success: model=%s lang=%s detected=%s transcript=%r (%.2f ms)",
+                        model, target_lang, detected_language, transcript, (time.time() - start_time) * 1000
                     )
             except Exception as sdk_err:
                 logger.warning("Sarvam SDK transcribe failed, attempting direct REST fallback: %s", sdk_err)
 
         if not used_sdk:
-
             # Direct REST fallback to https://api.sarvam.ai/speech-to-text
             try:
                 headers = {"api-subscription-key": api_key}
                 files = {"file": (filename, audio_bytes, mime_type)}
                 data = {
                     "model": model,
-                    "language_code": language_code,
-                    "mode": "codemix",
+                    "language_code": target_lang,
+                    "mode": mode,
                 }
                 res = requests.post(
                     "https://api.sarvam.ai/speech-to-text",
@@ -136,7 +144,8 @@ class SarvamSTTAdapter:
                 if res.status_code == 200:
                     payload = res.json()
                     transcript = payload.get("transcript", "")
-                    logger.info("Sarvam REST transcribe fallback success: %r", transcript)
+                    detected_language = payload.get("language_code", target_lang)
+                    logger.info("Sarvam REST transcribe fallback success: %r (detected=%s)", transcript, detected_language)
                 else:
                     logger.error("Sarvam REST error %d: %s", res.status_code, res.text)
                     raise RuntimeError(f"Sarvam API returned HTTP {res.status_code}: {res.text}")
@@ -147,7 +156,8 @@ class SarvamSTTAdapter:
         latency_ms = round((time.time() - start_time) * 1000, 2)
         return {
             "transcript": transcript.strip(),
-            "language_code": language_code,
+            "language_code": detected_language,
+            "detected_language": detected_language,
             "latency_ms": latency_ms,
             "model": model,
         }
@@ -195,25 +205,31 @@ class SarvamSTTAdapter:
             finally:
                 stream_active = False
 
+        latest_partial_text = ""
+
         async def partial_transcriber():
             """Periodically transcribe accumulated speech for live preview feedback."""
+            nonlocal latest_partial_text
             last_processed_bytes = 0
             while stream_active:
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(0.8)
                 current_bytes = sum(len(c) for c in accumulated_chunks)
-                # Require at least 1.0 second (32000 bytes @ 16kHz 16-bit) and at least 0.5s of new audio
-                if current_bytes >= 32000 and (current_bytes - last_processed_bytes) >= 16000:
+                # Require at least 0.75 second (24000 bytes @ 16kHz 16-bit) and at least 0.35s of new audio
+                if current_bytes >= 24000 and (current_bytes - last_processed_bytes) >= 12000:
                     last_processed_bytes = current_bytes
                     snap = b"".join(accumulated_chunks)
+                    # Sarvam allows max 30s; keep snapshot within 25s (800,000 bytes)
+                    snap_to_send = snap[-800000:] if len(snap) > 800000 else snap
                     try:
                         res = await asyncio.to_thread(
                             self.transcribe_pcm,
-                            snap,
+                            snap_to_send,
                             16000,
                             language_code,
                         )
                         partial_text = str(res.get("transcript", "")).strip()
                         if partial_text:
+                            latest_partial_text = partial_text
                             logger.info("Sarvam partial preview: %r", partial_text)
                             await out_queue.put({
                                 "provider": "sarvam",
@@ -247,28 +263,58 @@ class SarvamSTTAdapter:
 
                 final_transcript = ""
                 latency_ms = 0.0
+                detected_lang = language_code
 
                 if len(all_pcm) >= 8000:  # At least 0.25 seconds of audio
                     try:
-                        res = await asyncio.to_thread(
-                            self.transcribe_pcm,
-                            all_pcm,
-                            16000,
-                            language_code,
-                        )
-                        final_transcript = str(res.get("transcript", "")).strip()
-                        latency_ms = float(res.get("latency_ms", 0.0))
-                        logger.info("Sarvam FINAL transcript: %r (latency=%.1f ms)", final_transcript, latency_ms)
+                        # Sarvam 30s limit: chunk into 25s segments (800,000 bytes) if needed
+                        max_chunk_bytes = 800000
+                        if len(all_pcm) <= max_chunk_bytes:
+                            res = await asyncio.to_thread(
+                                self.transcribe_pcm,
+                                all_pcm,
+                                16000,
+                                language_code,
+                            )
+                            final_transcript = str(res.get("transcript", "")).strip()
+                            latency_ms = float(res.get("latency_ms", 0.0))
+                            detected_lang = res.get("language_code") or res.get("detected_language") or language_code
+                        else:
+                            # Split into <=25s chunks and transcribe each
+                            transcripts = []
+                            for offset in range(0, len(all_pcm), max_chunk_bytes):
+                                pcm_chunk = all_pcm[offset:offset + max_chunk_bytes]
+                                if len(pcm_chunk) >= 8000:
+                                    res = await asyncio.to_thread(
+                                        self.transcribe_pcm,
+                                        pcm_chunk,
+                                        16000,
+                                        language_code,
+                                    )
+                                    chunk_text = str(res.get("transcript", "")).strip()
+                                    if chunk_text:
+                                        transcripts.append(chunk_text)
+                                    latency_ms += float(res.get("latency_ms", 0.0))
+                                    if not detected_lang or detected_lang == "unknown":
+                                        detected_lang = res.get("language_code") or res.get("detected_language") or detected_lang
+                            final_transcript = " ".join(transcripts).strip()
+
+                        if not final_transcript and latest_partial_text:
+                            final_transcript = latest_partial_text
+
+                        logger.info("Sarvam FINAL transcript: %r (lang=%s, latency=%.1f ms)", final_transcript, detected_lang, latency_ms)
                     except Exception as err:
                         logger.error("Final Sarvam transcription error: %s", err)
-                        final_transcript = f"Transcription error: {err}"
+                        final_transcript = latest_partial_text
                 else:
                     logger.info("Audio duration too short for transcription (%.2f s)", total_duration_sec)
+                    final_transcript = latest_partial_text
 
                 await out_queue.put({
                     "provider": "sarvam",
                     "is_final": True,
                     "transcript": final_transcript,
+                    "language_code": detected_lang,
                     "latency_ms": latency_ms,
                 })
             except Exception as pipeline_err:
@@ -276,9 +322,10 @@ class SarvamSTTAdapter:
                 await out_queue.put({
                     "provider": "sarvam",
                     "is_final": True,
-                    "transcript": "",
+                    "transcript": latest_partial_text,
+                    "language_code": language_code,
                     "latency_ms": 0.0,
-                    "error": str(pipeline_err)
+                    "error": str(pipeline_err),
                 })
             finally:
                 await out_queue.put(None)

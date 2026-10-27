@@ -8,7 +8,8 @@ from app.routers import (
     health_router,
     skills_router,
     assessments_router,
-    stt_router
+    stt_router,
+    tts_router
 )
 
 logging.basicConfig(
@@ -52,3 +53,4 @@ app.include_router(health_router)
 app.include_router(skills_router)
 app.include_router(assessments_router)
 app.include_router(stt_router)
+app.include_router(tts_router)

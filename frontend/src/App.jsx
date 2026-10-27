@@ -1,27 +1,46 @@
 import React, { useState } from "react";
+import ProviderSelector from "./components/ProviderSelector";
 import SkillSelector from "./components/SkillSelector";
 import AssessmentView from "./components/AssessmentView";
 import ResultsView from "./components/ResultsView";
 import { createAssessment } from "./api/client";
 
 export default function App() {
+  const [selectedProvider, setSelectedProvider] = useState("sarvam");
+  const [selectedVoice, setSelectedVoice] = useState("shubh");
   const [assessment, setAssessment] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [viewMode, setViewMode] = useState("select"); // "select" | "interview" | "results"
+  // viewMode: "provider" | "select" | "interview" | "results"
+  const [viewMode, setViewMode] = useState("provider");
   const [completedAnswers, setCompletedAnswers] = useState({});
   const [selectedSttMode, setSelectedSttMode] = useState("sarvam");
 
-  const handleStartAssessment = async (selectedSkills) => {
-    setIsSubmitting(true);
+  const handleSelectProvider = (provider) => {
+    setSelectedProvider(provider);
+    setSelectedSttMode(provider);
+    setSelectedVoice(provider === "sarvam" ? "shubh" : "Kaveri");
     setErrorMessage("");
+    setViewMode("select");
+  };
+
+  const handleStartAssessment = async (selectedSkills, voice = null) => {
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    const activeVoice = voice || selectedVoice || (selectedProvider === "sarvam" ? "shubh" : "Kaveri");
+    if (voice) {
+      setSelectedVoice(voice);
+    }
 
     try {
       const response = await createAssessment({
         skills: selectedSkills,
         language: "en-IN",
         questionCount: 2,
-        sttMode: selectedSttMode
+        sttMode: selectedSttMode,
+        provider: selectedProvider,
+        voice: activeVoice
       });
       setAssessment(response);
       setViewMode("interview");
@@ -40,31 +59,70 @@ export default function App() {
   const handleReset = () => {
     setAssessment(null);
     setCompletedAnswers({});
-    setViewMode("select");
+    setViewMode("provider");
     setErrorMessage("");
   };
 
   return (
     <main className="container">
       <header className="app-header">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
           <div>
             <h1>Vani 2.0 POC — Technical Assessment</h1>
-            <p>Real-Time Speech Recognition powered by Sarvam AI Saaras v4</p>
+            <p>
+              {selectedProvider === "gnani"
+                ? "Voice Assessment & Question Reading powered by Gnani AI"
+                : "Real-Time Speech Recognition powered by Sarvam AI Saaras v4"}
+            </p>
           </div>
-          <div className="mode-selector-header">
-            <span className="badge" style={{ background: "#2563eb", color: "#fff", padding: "6px 12px", borderRadius: "16px", fontSize: "0.85rem", fontWeight: 600 }}>
-              STT: Sarvam Saaras v4
-            </span>
+          <div className="mode-selector-header" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {viewMode !== "provider" && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setViewMode("provider")}
+                  style={{ fontSize: "0.8rem", padding: "4px 10px" }}
+                  title="Switch speech and assessment provider"
+                >
+                  ← Switch Provider
+                </button>
+                <span
+                  className="badge"
+                  style={{
+                    background: selectedProvider === "gnani" ? "#7c3aed" : "#2563eb",
+                    color: "#fff",
+                    padding: "6px 12px",
+                    borderRadius: "16px",
+                    fontSize: "0.85rem",
+                    fontWeight: 600
+                  }}
+                >
+                  {selectedProvider === "gnani"
+                    ? `Provider: Gnani AI (${assessment?.voice || selectedVoice})`
+                    : `Provider: Sarvam AI (${assessment?.voice || selectedVoice})`}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </header>
+
+      {viewMode === "provider" && (
+        <ProviderSelector
+          currentProvider={selectedProvider}
+          onSelectProvider={handleSelectProvider}
+        />
+      )}
 
       {viewMode === "select" && (
         <SkillSelector
           onStartAssessment={handleStartAssessment}
           isSubmitting={isSubmitting}
           errorMessage={errorMessage}
+          selectedProvider={selectedProvider}
+          initialVoice={selectedVoice}
+          onChangeProvider={() => setViewMode("provider")}
         />
       )}
 

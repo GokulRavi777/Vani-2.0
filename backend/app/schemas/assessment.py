@@ -2,7 +2,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 from app.config import settings
 
-STTMode = Literal["google", "sarvam", "compare"]
+STTMode = Literal["google", "sarvam", "gnani", "compare"]
 QuestionGenerationMode = Literal["ai", "fallback"]
 
 
@@ -29,6 +29,14 @@ class CreateAssessmentRequest(BaseModel):
     stt_mode: Optional[STTMode] = Field(
         default=settings.DEFAULT_STT_MODE,
         description="Provider-neutral configuration for STT mode"
+    )
+    provider: Optional[str] = Field(
+        default="sarvam",
+        description="Selected AI provider (sarvam or gnani)"
+    )
+    voice: Optional[str] = Field(
+        default=None,
+        description="Selected voice identifier for interviewer TTS reading"
     )
 
     @field_validator("skills")
@@ -93,6 +101,14 @@ class AssessmentResponse(BaseModel):
     stt_mode: Optional[STTMode] = Field(
         default=settings.DEFAULT_STT_MODE,
         description="STT provider mode configuration"
+    )
+    provider: Optional[str] = Field(
+        default="sarvam",
+        description="Active provider for this assessment (sarvam or gnani)"
+    )
+    voice: Optional[str] = Field(
+        default=None,
+        description="Configured interviewer voice for TTS playback"
     )
     questions: List[QuestionModel] = Field(
         ...,

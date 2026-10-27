@@ -44,6 +44,23 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     SARVAM_API_KEY: Optional[str] = None
 
+    # Gnani AI Configuration
+    GNANI_API_KEY: Optional[str] = None
+    GNANI_TTS_ENDPOINT: str = "https://api.vachana.ai/api/v1/tts/inference"
+    GNANI_TTS_MODEL: str = "timbre-v2.5"
+    GNANI_VOICE_CLONE_MODEL: str = "vachana-vc-v1"
+    GNANI_VOICE_CLONE_EMBEDDINGS_ENDPOINT: str = "https://api.vachana.ai/api/v1/tts/voice-clone/embeddings"
+    GNANI_DEFAULT_VOICE: str = "Pranav"
+    GNANI_DEFAULT_LANGUAGE: str = "en-IN"
+
+    # Gnani Realtime STT & Voice Activity Detection (VAD) Tuning Parameters
+    GNANI_STT_WS_ENDPOINT: str = "wss://api.vachana.ai/stt/v3/stream"
+    GNANI_VAD_THRESHOLD: float = 0.55   # 0.0 - 1.0 (Optimal: 0.55 for web mic)
+    GNANI_MIN_SILENCE_MS: int = 700     # 100 - 2000 ms (Optimal: 700ms for technical interview turns)
+    GNANI_MIN_SPEECH_MS: int = 120      # 50 - 2000 ms (Optimal: 120ms noise gate against breath/clicks)
+    GNANI_MIN_SEGMENT_MS: int = 120     # 100 - 1000 ms (Optimal: 120ms segment floor)
+    GNANI_MAX_SPEECH_S: float = 20.0    # 5.0 - 120.0 s (Optimal: 20s monologue cap)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

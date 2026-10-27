@@ -2,6 +2,8 @@
  * API client for Vani 2.0 POC backend.
  */
 
+import { convertBlobToWav } from "./wavEncoder.js";
+
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 
 export function getWebSocketBaseUrl() {
@@ -58,7 +60,75 @@ export async function fetchSkills() {
   return handleResponse(res);
 }
 
-export async function createAssessment({ skills, language = "en-IN", questionCount = 2, sttMode = "sarvam" }) {
+export async function fetchTtsVoices(provider = "gnani", language = "") {
+  const query = new URLSearchParams({ provider });
+  if (language) query.append("language", language);
+  const res = await fetch(`${API_BASE}/api/tts/voices?${query.toString()}`);
+  return handleResponse(res);
+}
+
+export async function enrollCustomVoice(audioBlob, voiceName = "My Voice", consent = true) {
+  // Convert any audio blob (WebM, MP3, etc.) to 16kHz PCM WAV for Gnani Voice Clone API
+  let wavBlob = audioBlob;
+  try {
+    wavBlob = await convertBlobToWav(audioBlob);
+  } catch (convErr) {
+    console.warn("Could not convert audio to WAV, uploading original:", convErr);
+  }
+
+  const formData = new FormData();
+  formData.append("file", wavBlob, "voice_sample.wav");
+  formData.append("voice_name", voiceName);
+  formData.append("consent", consent ? "true" : "false");
+  formData.append("language", "en-IN");
+
+  const res = await fetch(`${API_BASE}/api/tts/voice-clone/enroll`, {
+    method: "POST",
+    body: formData
+  });
+  return handleResponse(res);
+}
+
+export async function fetchCustomVoices() {
+  const res = await fetch(`${API_BASE}/api/tts/voice-clone/voices`);
+  return handleResponse(res);
+}
+
+export async function fetchVadPresets() {
+  const res = await fetch(`${API_BASE}/api/stt/vad-presets`);
+  return handleResponse(res);
+}
+
+export function getQuestionAudioUrl(assessmentId, questionId, voice = null, provider = "gnani") {
+  const query = new URLSearchParams({ provider });
+  if (voice) query.append("voice", voice);
+  return `${API_BASE}/api/tts/assessments/${encodeURIComponent(assessmentId)}/questions/${encodeURIComponent(questionId)}?${query.toString()}`;
+}
+
+export async function fetchQuestionAudioBlob(assessmentId, questionId, voice = null, provider = "gnani") {
+  const url = getQuestionAudioUrl(assessmentId, questionId, voice, provider);
+  const res = await fetch(url);
+  if (!res.ok) {
+    let errorMsg = `HTTP ${res.status}`;
+    try {
+      const errJson = await res.json();
+      errorMsg = errJson.detail || errorMsg;
+    } catch {
+      // fallback
+    }
+    throw new Error(errorMsg);
+  }
+  return res.blob();
+}
+
+export async function createAssessment({
+  skills,
+  language = "en-IN",
+  questionCount = 2,
+  sttMode = "sarvam",
+  provider = "sarvam",
+  voice = null
+}) {
   const res = await fetch(`${API_BASE}/api/assessments`, {
     method: "POST",
     headers: {
@@ -68,7 +138,9 @@ export async function createAssessment({ skills, language = "en-IN", questionCou
       skills,
       language,
       question_count: questionCount,
-      stt_mode: sttMode
+      stt_mode: sttMode,
+      provider: provider,
+      voice: voice
     })
   });
   return handleResponse(res);
@@ -97,15 +169,17 @@ export async function submitAnswer(assessmentId, { questionId, transcript, audio
   return handleResponse(res);
 }
 
-export async function transcribeAudioBlob(blob, { language = "unknown", questionId = null } = {}) {
+export async function transcribeAudioBlob(blob, { language = "unknown", questionId = null, provider = "sarvam" } = {}) {
   const formData = new FormData();
   const rawType = (blob.type || "").split(";")[0].trim() || "audio/webm";
   const ext = rawType.includes("webm") ? "webm" : rawType.includes("mp4") ? "mp4" : "wav";
   const cleanBlob = new Blob([blob], { type: rawType });
   formData.append("file", cleanBlob, `recorded_audio.${ext}`);
 
-
-  const query = new URLSearchParams({ language_code: language });
+  const query = new URLSearchParams({
+    language_code: language,
+    provider: provider || "sarvam"
+  });
   if (questionId) query.append("question_id", questionId);
 
   const res = await fetch(`${API_BASE}/api/stt/transcribe?${query.toString()}`, {

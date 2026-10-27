@@ -262,8 +262,8 @@ def test_websocket_stt_unconfigured_provider_returns_error(client, monkeypatch):
         assert "Sarvam AI API key" in data["error"]
 
 
-def test_sarvam_adapter_codemix_sdk(monkeypatch):
-    """Verify that SarvamSTTAdapter sends mode='codemix' via the official SDK."""
+def test_sarvam_adapter_transcribe_sdk(monkeypatch):
+    """Verify that SarvamSTTAdapter sends mode='transcribe' and auto-detects language via the official SDK."""
     from unittest.mock import MagicMock
     from app.services.stt.base import SarvamSTTAdapter
 
@@ -271,6 +271,7 @@ def test_sarvam_adapter_codemix_sdk(monkeypatch):
     mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.transcript = "பைதான் list mutable, ஆனால் tuple immutable."
+    mock_response.language_code = "ta-IN"
     mock_client.speech_to_text.transcribe.return_value = mock_response
     monkeypatch.setattr(adapter, "get_client", lambda: mock_client)
 
@@ -284,16 +285,16 @@ def test_sarvam_adapter_codemix_sdk(monkeypatch):
 
     assert result["transcript"] == "பைதான் list mutable, ஆனால் tuple immutable."
     assert result["model"] == "saaras:v4"
-    assert result["language_code"] == "unknown"
+    assert result["language_code"] == "ta-IN"
     mock_client.speech_to_text.transcribe.assert_called_once()
     _, kwargs = mock_client.speech_to_text.transcribe.call_args
-    assert kwargs.get("mode") == "codemix"
+    assert kwargs.get("mode") == "transcribe"
     assert kwargs.get("language_code") == "unknown"
     assert kwargs.get("model") == "saaras:v4"
 
 
-def test_sarvam_adapter_codemix_rest_fallback(monkeypatch):
-    """Verify that SarvamSTTAdapter sends mode='codemix' via direct REST fallback."""
+def test_sarvam_adapter_transcribe_rest_fallback(monkeypatch):
+    """Verify that SarvamSTTAdapter sends mode='transcribe' and auto-detects language via direct REST fallback."""
     from unittest.mock import MagicMock
     from app.services.stt import base
     from app.services.stt.base import SarvamSTTAdapter
@@ -306,7 +307,8 @@ def test_sarvam_adapter_codemix_rest_fallback(monkeypatch):
     mock_res = MagicMock()
     mock_res.status_code = 200
     mock_res.json.return_value = {
-        "transcript": "SQL query ல index use பண்ணினா lookup O(1) or O(log n) ஆகும்."
+        "transcript": "SQL query ல index use பண்ணினா lookup O(1) or O(log n) ஆகும்.",
+        "language_code": "ta-IN"
     }
     mock_post.return_value = mock_res
     monkeypatch.setattr(base.requests, "post", mock_post)
@@ -320,12 +322,12 @@ def test_sarvam_adapter_codemix_rest_fallback(monkeypatch):
     )
 
     assert result["transcript"] == "SQL query ல index use பண்ணினா lookup O(1) or O(log n) ஆகும்."
-    assert result["language_code"] == "unknown"
+    assert result["language_code"] == "ta-IN"
     assert result["model"] == "saaras:v4"
     assert "latency_ms" in result
     mock_post.assert_called_once()
     _, kwargs = mock_post.call_args
-    assert kwargs["data"]["mode"] == "codemix"
+    assert kwargs["data"]["mode"] == "transcribe"
     assert kwargs["data"]["language_code"] == "unknown"
     assert kwargs["data"]["model"] == "saaras:v4"
     assert kwargs["headers"]["api-subscription-key"] == "test_key_123"
