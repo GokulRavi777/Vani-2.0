@@ -8,6 +8,7 @@ import { createAssessment } from "./api/client";
 export default function App() {
   const [selectedProvider, setSelectedProvider] = useState("sarvam");
   const [selectedVoice, setSelectedVoice] = useState("shubh");
+  const [selectedLanguage, setSelectedLanguage] = useState("unknown");
   const [assessment, setAssessment] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -24,19 +25,23 @@ export default function App() {
     setViewMode("select");
   };
 
-  const handleStartAssessment = async (selectedSkills, voice = null) => {
+  const handleStartAssessment = async (selectedSkills, voice = null, language = "unknown") => {
     setErrorMessage("");
     setIsSubmitting(true);
 
     const activeVoice = voice || selectedVoice || (selectedProvider === "sarvam" ? "shubh" : "Kaveri");
+    const activeLang = language || selectedLanguage || "unknown";
     if (voice) {
       setSelectedVoice(voice);
+    }
+    if (language) {
+      setSelectedLanguage(language);
     }
 
     try {
       const response = await createAssessment({
         skills: selectedSkills,
-        language: "en-IN",
+        language: activeLang,
         questionCount: 2,
         sttMode: selectedSttMode,
         provider: selectedProvider,

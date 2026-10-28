@@ -4,6 +4,16 @@ import { convertBlobToWav } from "../api/wavEncoder";
 
 const DEFAULT_SKILLS = ["Python", "SQL", "Java", "Machine Learning"];
 
+export const SUPPORTED_INTERVIEW_LANGUAGES = [
+  { code: "unknown", label: "⚡ Auto-Detect Spoken Language (Tamil, Hindi, etc.)", scriptTag: "Auto Indic / Code-Mix" },
+  { code: "ta-IN", label: "🇮🇳 Tamil (தமிழ்)", scriptTag: "தமிழ் Script" },
+  { code: "hi-IN", label: "🇮🇳 Hindi (हिन्दी)", scriptTag: "देवनागरी Script" },
+  { code: "en-IN", label: "🇮🇳 English (Indian)", scriptTag: "Latin Script" },
+  { code: "te-IN", label: "🇮🇳 Telugu (తెలుగు)", scriptTag: "తెలుగు Script" },
+  { code: "kn-IN", label: "🇮🇳 Kannada (ಕನ್ನಡ)", scriptTag: "ಕನ್ನಡ Script" },
+  { code: "ml-IN", label: "🇮🇳 Malayalam (മലയാളം)", scriptTag: "മലയാളം Script" }
+];
+
 const DEFAULT_GNANI_VOICES = [
   { id: "Kaveri", name: "Kaveri (Female)", language: "en-IN", gender: "Female", description: "Firm, polished voice for technical assessment" },
   { id: "Pranav", name: "Pranav (Male)", language: "en-IN", gender: "Male", description: "Friendly, natural voice for interviews" },
@@ -21,6 +31,7 @@ export default function SkillSelector({
   errorMessage,
   selectedProvider = "sarvam",
   initialVoice = "shubh",
+  initialLanguage = "unknown",
   onChangeProvider
 }) {
   const [availableSkills, setAvailableSkills] = useState(DEFAULT_SKILLS);
@@ -28,6 +39,7 @@ export default function SkillSelector({
   const [validationError, setValidationError] = useState("");
   const [supportedVoices, setSupportedVoices] = useState([]);
   const [selectedVoice, setSelectedVoice] = useState(initialVoice || (selectedProvider === "sarvam" ? "shubh" : "Kaveri"));
+  const [selectedLanguage, setSelectedLanguage] = useState(initialLanguage || "unknown");
 
   // Voice Cloning State (Phase 4 - Gnani)
   const [showClonePanel, setShowClonePanel] = useState(false);
@@ -202,7 +214,7 @@ export default function SkillSelector({
       return;
     }
     setValidationError("");
-    onStartAssessment(selectedSkills, selectedVoice);
+    onStartAssessment(selectedSkills, selectedVoice, selectedLanguage);
   };
 
   return (
@@ -210,10 +222,10 @@ export default function SkillSelector({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
         <div>
           <h2 id="skill-selection-title" className="card-title">
-            Select Technical Skill
+            Select Technical Skill & Spoken Language
           </h2>
           <p className="card-subtitle" style={{ marginBottom: "12px" }}>
-            Select exactly one skill for your interview assessment. Exactly two questions will be generated.
+            Select your skill and spoken language. Transcriptions are rendered in the spoken language without English translation.
           </p>
         </div>
         {onChangeProvider && (
@@ -227,6 +239,42 @@ export default function SkillSelector({
             ← Change Provider ({selectedProvider === "gnani" ? "Gnani AI" : "Sarvam AI"})
           </button>
         )}
+      </div>
+
+      {/* Spoken Language Card (Enforces verbatim transcription, No Translation) */}
+      <div className="voice-selection-card" style={{
+        background: "#f0fdf4",
+        border: "1px solid #bbf7d0",
+        borderRadius: "var(--radius)",
+        padding: "16px",
+        marginBottom: "20px"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
+          <label htmlFor="interview-language-select" style={{ fontWeight: 600, fontSize: "0.95rem", color: "#166534" }}>
+            🗣️ Candidate Spoken Language
+          </label>
+          <span style={{ fontSize: "0.78rem", color: "#15803d", background: "#dcfce7", padding: "3px 8px", borderRadius: "12px", fontWeight: 700 }}>
+            Verbatim Transcription • No English Translation
+          </span>
+        </div>
+
+        <select
+          id="interview-language-select"
+          className="select-dropdown"
+          value={selectedLanguage}
+          onChange={(e) => setSelectedLanguage(e.target.value)}
+          style={{ width: "100%", padding: "8px 12px", fontSize: "0.9rem", borderColor: "#86efac", borderRadius: "6px" }}
+          disabled={isSubmitting}
+        >
+          {SUPPORTED_INTERVIEW_LANGUAGES.map((lang) => (
+            <option key={lang.code} value={lang.code}>
+              {lang.label} — {lang.scriptTag}
+            </option>
+          ))}
+        </select>
+        <p style={{ margin: "6px 0 0 0", fontSize: "0.8rem", color: "#15803d" }}>
+          Both Sarvam AI and Gnani AI will transcribe speech directly in the spoken language (Tamil script for Tamil, Hindi for Hindi). Answers are <strong>never translated into English</strong>.
+        </p>
       </div>
 
       {selectedProvider === "gnani" && (

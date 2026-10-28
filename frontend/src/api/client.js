@@ -123,12 +123,16 @@ export async function fetchQuestionAudioBlob(assessmentId, questionId, voice = n
 
 export async function createAssessment({
   skills,
-  language = "en-IN",
+  language = "unknown",
   questionCount = 2,
   sttMode = "sarvam",
   provider = "sarvam",
   voice = null
 }) {
+  // If deployed backend has an older schema where stt_mode Literal only accepts ('google', 'sarvam', 'compare'),
+  // safely map 'gnani' stt_mode to 'sarvam' while preserving provider="gnani" and voice
+  const safeSttMode = sttMode === "gnani" ? "sarvam" : (sttMode || "sarvam");
+
   const res = await fetch(`${API_BASE}/api/assessments`, {
     method: "POST",
     headers: {
@@ -136,9 +140,9 @@ export async function createAssessment({
     },
     body: JSON.stringify({
       skills,
-      language,
+      language: language || "unknown",
       question_count: questionCount,
-      stt_mode: sttMode,
+      stt_mode: safeSttMode,
       provider: provider,
       voice: voice
     })

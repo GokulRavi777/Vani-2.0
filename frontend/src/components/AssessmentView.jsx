@@ -162,9 +162,9 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
 
     audioCaptureRef.current = captureService;
 
-    // Connect WebSocket (use 'unknown' for automatic language detection in the spoken language)
+    // Connect WebSocket (uses candidate's selected spoken language, e.g. ta-IN, hi-IN, or unknown)
     const wsBase = getWebSocketBaseUrl();
-    const targetLang = assessment.language && assessment.language !== "en-IN" ? assessment.language : "unknown";
+    const targetLang = assessment.language || "unknown";
     const effectiveProvider = (assessment.provider || assessment.stt_mode || "sarvam").toLowerCase();
     const wsQueryParams = new URLSearchParams({
       assessment_id: assessment.assessment_id,
@@ -282,7 +282,7 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
 
     // Direct REST transcribe fallback using recorded audio blob
     if (capturedBlob && capturedBlob.size > 0) {
-      const restLang = assessment.language && assessment.language !== "en-IN" ? assessment.language : "unknown";
+      const restLang = assessment.language || "unknown";
       const activeProvider = assessment.provider || assessment.stt_mode || "sarvam";
       transcribeAudioBlob(capturedBlob, {
         language: restLang,
@@ -448,6 +448,7 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
           onPauseAudio={stopQuestionAudio}
           vadSettings={vadSettings}
           onChangeVadSettings={setVadSettings}
+          language={assessment?.language || "unknown"}
         />
 
         {/* Navigation Controls */}

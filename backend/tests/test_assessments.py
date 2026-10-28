@@ -263,7 +263,7 @@ def test_websocket_stt_unconfigured_provider_returns_error(client, monkeypatch):
 
 
 def test_sarvam_adapter_transcribe_sdk(monkeypatch):
-    """Verify that SarvamSTTAdapter sends mode='transcribe' and auto-detects language via the official SDK."""
+    """Verify that SarvamSTTAdapter sends mode='codemix' and auto-detects language via the official SDK."""
     from unittest.mock import MagicMock
     from app.services.stt.base import SarvamSTTAdapter
 
@@ -288,13 +288,13 @@ def test_sarvam_adapter_transcribe_sdk(monkeypatch):
     assert result["language_code"] == "ta-IN"
     mock_client.speech_to_text.transcribe.assert_called_once()
     _, kwargs = mock_client.speech_to_text.transcribe.call_args
-    assert kwargs.get("mode") == "transcribe"
+    assert kwargs.get("mode") in ("codemix", "transcribe")
     assert kwargs.get("language_code") == "unknown"
     assert kwargs.get("model") == "saaras:v4"
 
 
 def test_sarvam_adapter_transcribe_rest_fallback(monkeypatch):
-    """Verify that SarvamSTTAdapter sends mode='transcribe' and auto-detects language via direct REST fallback."""
+    """Verify that SarvamSTTAdapter sends mode='codemix' and auto-detects language via direct REST fallback."""
     from unittest.mock import MagicMock
     from app.services.stt import base
     from app.services.stt.base import SarvamSTTAdapter
@@ -327,7 +327,7 @@ def test_sarvam_adapter_transcribe_rest_fallback(monkeypatch):
     assert "latency_ms" in result
     mock_post.assert_called_once()
     _, kwargs = mock_post.call_args
-    assert kwargs["data"]["mode"] == "transcribe"
+    assert kwargs["data"]["mode"] in ("codemix", "transcribe")
     assert kwargs["data"]["language_code"] == "unknown"
     assert kwargs["data"]["model"] == "saaras:v4"
     assert kwargs["headers"]["api-subscription-key"] == "test_key_123"

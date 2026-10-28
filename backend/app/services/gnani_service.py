@@ -333,13 +333,20 @@ def build_gnani_vad_headers(
     speech_clamped = max(50, min(2000, int(speech)))
     segment_clamped = max(100, min(1000, int(segment)))
 
-    resolved_lang = "en-IN" if not language_code or language_code.lower() in ("unknown", "auto", "default", "indic-auto") else language_code
+    # Support original spoken languages (ta-IN, hi-IN, kn-IN, etc.) and auto-detect
+    # without translating to English.
+    if not language_code or language_code.lower() in ("default", "en"):
+        resolved_lang = "en-IN"
+    elif language_code.lower() in ("unknown", "auto", "indic-auto"):
+        resolved_lang = "indic-auto"
+    else:
+        resolved_lang = language_code
 
     headers = {
         "x-api-key-id": api_key,
         "lang_code": resolved_lang,
         "x-sample-rate": str(sample_rate),
-        "x-format": "transcribe",
+        "x-format": "transcribe",  # Strictly transcribe in original spoken language, never translate to English
         "x-vad-threshold": f"{thresh_clamped:.2f}",
         "x-min-silence-ms": str(silence_clamped),
         "x-min-speech-ms": str(speech_clamped),
@@ -713,6 +720,8 @@ async def transcribe_audio_file_gnani(
         raise RuntimeError("Gnani API key (GNANI_API_KEY) is not configured in backend/.env")
 
     resolved_lang = resolve_pipecat_language(language_code)
+    # Strictly transcribe in original spoken language without translating to English
+    clean_format = "transcribe" if (not format or format.lower() == "translate") else format
     start_time = time.time()
 
     async with aiohttp.ClientSession() as session:
@@ -722,7 +731,7 @@ async def transcribe_audio_file_gnani(
             sample_rate=sample_rate,
             settings=GnaniHttpSTTService.Settings(
                 language=resolved_lang,
-                format=format
+                format=clean_format
             )
         )
 

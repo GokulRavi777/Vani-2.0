@@ -81,10 +81,12 @@ class SarvamSTTAdapter:
         language_code: str = "unknown",
         mime_type: str = "audio/wav",
         model: str = "saaras:v4",
-        mode: str = "transcribe",
+        mode: str = "codemix",
     ) -> Dict[str, object]:
         """Transcribe an audio buffer using Sarvam AI Saaras v4.
         
+        Transcribes directly in the original spoken language (e.g. Tamil, Hindi,
+        Bengali, Telugu) without translating to English.
         When language_code is 'unknown' or 'auto', Sarvam auto-detects
         the spoken language and transcribes the speech in that same language.
         """
@@ -95,6 +97,12 @@ class SarvamSTTAdapter:
         start_time = time.time()
         transcript = ""
         used_sdk = False
+
+        # Strictly enforce spoken language transcription without translation to English
+        effective_mode = mode
+        if effective_mode == "translate" or not effective_mode:
+            logger.info("Enforcing original spoken language transcription: overriding translate -> codemix")
+            effective_mode = "codemix"
 
         # Normalize auto/default/unknown to 'unknown' for Sarvam auto language detection
         target_lang = "unknown" if (not language_code or language_code.lower() in ("unknown", "auto", "default")) else language_code
@@ -112,14 +120,14 @@ class SarvamSTTAdapter:
                         file=(filename, audio_bytes, mime_type),
                         model=model,
                         language_code=target_lang,
-                        mode=mode,
+                        mode=effective_mode,
                     )
                     transcript = getattr(response, "transcript", "") or ""
                     detected_language = getattr(response, "language_code", None) or target_lang
                     used_sdk = True
                     logger.info(
-                        "Sarvam SDK transcribe success: model=%s lang=%s detected=%s transcript=%r (%.2f ms)",
-                        model, target_lang, detected_language, transcript, (time.time() - start_time) * 1000
+                        "Sarvam SDK transcribe success: model=%s lang=%s detected=%s mode=%s transcript=%r (%.2f ms)",
+                        model, target_lang, detected_language, effective_mode, transcript, (time.time() - start_time) * 1000
                     )
             except Exception as sdk_err:
                 logger.warning("Sarvam SDK transcribe failed, attempting direct REST fallback: %s", sdk_err)
@@ -132,7 +140,7 @@ class SarvamSTTAdapter:
                 data = {
                     "model": model,
                     "language_code": target_lang,
-                    "mode": mode,
+                    "mode": effective_mode,
                 }
                 res = requests.post(
                     "https://api.sarvam.ai/speech-to-text",

@@ -80,7 +80,8 @@ export default function AudioInterviewCard({
   onReplayAudio,
   onPauseAudio,
   vadSettings,
-  onChangeVadSettings
+  onChangeVadSettings,
+  language = "unknown"
 }) {
   const [vadPanelOpen, setVadPanelOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("sliders"); // "sliders" | "headers" | "guide"
@@ -584,6 +585,14 @@ x-bias-score: 1.5`}
               ⚡ Turnaround: <strong>{latencyMs} ms</strong>
             </div>
           )}
+
+          <div
+            className="audio-spec-badge"
+            style={{ background: "#ecfdf5", color: "#065f46", borderColor: "#a7f3d0" }}
+            title="Speech is transcribed in the original spoken language without English translation"
+          >
+            🗣️ {language === "ta-IN" ? "Tamil (தமிழ்)" : language === "hi-IN" ? "Hindi (हिन्दी)" : language === "en-IN" ? "English" : language === "kn-IN" ? "Kannada (ಕನ್ನಡ)" : language === "te-IN" ? "Telugu (తెలుగు)" : language === "ml-IN" ? "Malayalam (മലയാളം)" : "Auto Spoken Language"} (No Translation)
+          </div>
 
           {audioMetadata && audioMetadata.rawSampleRate && (
             <div className="audio-spec-badge">
