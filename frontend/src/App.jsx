@@ -47,7 +47,13 @@ export default function App() {
         provider: selectedProvider,
         voice: activeVoice
       });
-      setAssessment(response);
+      setAssessment({
+        ...response,
+        provider: response.provider || selectedProvider,
+        voice: response.voice || activeVoice,
+        language: response.language || activeLang,
+        stt_mode: selectedProvider === "gnani" ? "gnani" : (response.stt_mode || selectedSttMode)
+      });
       setViewMode("interview");
     } catch (err) {
       setErrorMessage(err.message || "Failed to generate assessment. Please check backend connection.");

@@ -121,6 +121,32 @@ export async function fetchQuestionAudioBlob(assessmentId, questionId, voice = n
   return res.blob();
 }
 
+export async function synthesizeText({ text, voice = null, provider = "gnani", language = "en-IN" }) {
+  const res = await fetch(`${API_BASE}/api/tts/synthesize`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      text,
+      voice,
+      provider,
+      language
+    })
+  });
+  if (!res.ok) {
+    let errorMsg = `HTTP ${res.status}`;
+    try {
+      const errJson = await res.json();
+      errorMsg = errJson.detail || errorMsg;
+    } catch {
+      // fallback
+    }
+    throw new Error(errorMsg);
+  }
+  return res.blob();
+}
+
 export async function createAssessment({
   skills,
   language = "unknown",

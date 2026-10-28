@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import AudioInterviewCard from "./AudioInterviewCard";
 import { AudioCaptureService } from "../api/audioCapture";
 import { STTWebSocketClient } from "../api/websocketClient";
-import { submitAnswer, transcribeAudioBlob, getWebSocketBaseUrl, fetchQuestionAudioBlob } from "../api/client";
+import { submitAnswer, transcribeAudioBlob, getWebSocketBaseUrl, fetchQuestionAudioBlob, synthesizeText } from "../api/client";
 
 export default function AssessmentView({ assessment, onReset, onComplete }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -51,23 +51,45 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
       audioInstanceRef.current.pause();
       audioInstanceRef.current = null;
     }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // ignore
+      }
+    }
     setTtsPlaying(false);
   };
 
   const playQuestionAudio = async (questionId) => {
-    if (!assessment || !questionId) return;
+    if (!assessment || !questionId || !currentQuestion) return;
     stopQuestionAudio();
 
     setTtsLoading(true);
     setTtsError("");
 
+    const effectiveProv = (assessment.provider || "gnani").toLowerCase();
+    const defaultVoice = effectiveProv === "sarvam" ? "shubh" : "Kaveri";
+    const voice = assessment.voice || defaultVoice;
+
     try {
       let audioBlob = questionAudioCacheRef.current[questionId];
       if (!audioBlob) {
-        const effectiveProv = (assessment.provider || "sarvam").toLowerCase();
-        const defaultVoice = effectiveProv === "sarvam" ? "shubh" : "Kaveri";
-        const voice = assessment.voice || defaultVoice;
-        audioBlob = await fetchQuestionAudioBlob(assessment.assessment_id, questionId, voice, effectiveProv);
+        try {
+          audioBlob = await fetchQuestionAudioBlob(assessment.assessment_id, questionId, voice, effectiveProv);
+        } catch (fetchErr) {
+          // If session question route returns 404, fallback to direct synthesis endpoint
+          if (fetchErr.message && (fetchErr.message.includes("404") || fetchErr.message.includes("Not Found"))) {
+            audioBlob = await synthesizeText({
+              text: currentQuestion.text,
+              voice,
+              provider: effectiveProv,
+              language: assessment.language || "en-IN"
+            });
+          } else {
+            throw fetchErr;
+          }
+        }
         questionAudioCacheRef.current[questionId] = audioBlob;
       }
 
@@ -87,7 +109,30 @@ export default function AssessmentView({ assessment, onReset, onComplete }) {
 
       await audio.play();
     } catch (err) {
-      console.warn("Question TTS playback error:", err);
+      console.warn("Backend TTS playback error, attempting browser speech synthesis fallback:", err);
+      // Fallback: Web Speech API synthesis so candidate is never blocked from hearing questions
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(currentQuestion.text);
+          utterance.lang = assessment.language && assessment.language !== "unknown" ? assessment.language : "en-IN";
+          utterance.rate = 0.95;
+          utterance.onstart = () => {
+            setTtsPlaying(true);
+            setTtsError("");
+          };
+          utterance.onend = () => setTtsPlaying(false);
+          utterance.onerror = () => {
+            setTtsPlaying(false);
+            setTtsError("Audio playback failed. Please read the question on screen.");
+          };
+          window.speechSynthesis.speak(utterance);
+          setTtsError("");
+          return;
+        } catch {
+          // fallback failed
+        }
+      }
       setTtsError(err.message || "Failed to load question audio.");
     } finally {
       setTtsLoading(false);
